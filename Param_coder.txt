@@ -1,0 +1,8 @@
+dataset | nmax | psnr_min | cut_algo | lambda_ | method_ | enable_reduction | enable_Ncut
+
+Fountain_Vincent2 5000 20 Ncut 1000 total_variation 1 1
+Fountain_Vincent2 5000 25 Ncut 1000 total_variation 1 1
+Fountain_Vincent2 5000 30 Ncut 1000 total_variation 1 1
+Fountain_Vincent2 5000 35 Ncut 1000 total_variation 1 1
+Fountain_Vincent2 5000 40 Ncut 1000 total_variation 1 1
+Fountain_Vincent2 5000 45 Ncut 1000 total_variation 1 1

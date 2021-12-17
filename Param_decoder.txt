@@ -1,0 +1,7 @@
+Fountain_Vincent2 25 1 1
+
+
+% You can add the same sets of parameters with target PSNR: 20,25,30,35,40,45
+
+
+

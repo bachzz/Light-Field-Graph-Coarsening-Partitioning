@@ -1,0 +1,19 @@
+# signal processing & learning
+numpy
+scipy
+sklearn
+scikit-image
+
+# computer vision & io
+h5py
+opencv-python
+
+# graph signal processing
+pygsp
+networkx
+
+# parallel computing
+ray
+
+# extras
+matplotlib
