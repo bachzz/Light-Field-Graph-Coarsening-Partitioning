@@ -104,6 +104,7 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
     Disparity_dict = Disparity_ref
     Mref_sequence = [0,4]
     Nref_sequence = [0,4]
+    K = 3 # number of views to be projected in a local neighborhood = 4-1
     ###
     
     #LabelList = np.unique(Segmentation_first_view[np.squeeze(mask[0,0,:,:])])
@@ -145,6 +146,8 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
     disparity_values = {};
 
     for view_id in Segmentation_dict:
+        i_ref = view_id.split('_')[0]
+        j_ref = view_id.split('_')[1]
 
         disparity_values[view_id] = []
         
@@ -157,131 +160,55 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
             disp_med[Segmentation_dict[view_id]==LabelInd] = temp_depth;
             disparity_values[view_id].append(temp_depth)
         
-        DepthSquence[0,0,:,:] = disp_med
+        DepthSquence[i_ref,j_ref,:,:] = disp_med
 
 
-
+    ###
     for m in range(M):
-        #print('View m = %d\n', m)
-        # pour la premiere ligne
-        if (m == 0):
-            disp_temp = np.squeeze(DepthSquence[0,0,:,:])
-            for n in range(1,N): #toutes les colonnes
-                # legal indices in view m,n
-                mask_viewmn = np.squeeze(mask[m,n,:,:])
-                legal_ind = np.nonzero(mask_viewmn == True)
-                legal_ind = np.ravel_multi_index([legal_ind[0], legal_ind[1]], (X,Y))
-                #print('View n = %d\n', n)
-                for LabelInd in LabelList:
-                    # temp depth of the superrays
-                    temp_depth = disp_temp[Segmentation_first_view==LabelInd]
-                    [rx, ry] = (Segmentation_first_view==LabelInd).nonzero()
-                    temp_depth = np.median(temp_depth)
-                    if (np.isnan(temp_depth) or np.isinf(temp_depth)):
-                        print("infinite value encountered in 1st column")
-                    # projection from first view to the horizontal neighbors next to it
-                    temp_LabelSquence = np.squeeze(LabelSquence[m,n,:,:]);
-                    temp_DepthSquence = np.squeeze(DepthSquence[m,n,:,:]);
-                    # reference
-                    Mref = 0
-                    Nref = 0
-                    # target
-                    Mtar = m
-                    Ntar = n
-                    # projection
-                    nx = (Mtar-Mref)*temp_depth
-                    ny = (Ntar-Nref)*temp_depth
-                    nx = np.round(rx + nx).astype('int64')
-                    ny = np.round(ny + ry).astype('int64')
-                    
-                    # Out of range not included in original Super-rays
-                    illegal_ind_mask11 = np.logical_or(nx<0,nx>(X-1))
-                    illegal_ind_mask12 = np.logical_or(ny<0,ny>(Y-1))
-                    illegal_ind_mask1 = np.logical_or(illegal_ind_mask11,illegal_ind_mask12)
-                    nx = nx[~illegal_ind_mask1]
-                    ny = ny[~illegal_ind_mask1]
-                    
-                    # occlusion detection
-                    occlusion_depth = temp_DepthSquence[nx, ny]
-                    illegal_ind_mask2 = occlusion_depth<temp_depth
-                    
-                    nx = nx[~illegal_ind_mask2]
-                    ny = ny[~illegal_ind_mask2]
-                    temp_LabelSquence[nx, ny] = LabelInd
-                    temp_DepthSquence[nx, ny] = temp_depth
-                   
-                Cru_Label = temp_LabelSquence
-                Cru_Depth = temp_DepthSquence
-            
-                print('Horizontal fill\n')
-                # horizontal fill
-                for x in range(X):
-                    x_Label = Cru_Label[x, :]
-                    x_Depth = Cru_Depth[x, :]
-                    x_Binary = np.isinf(x_Depth)
-                    x_Binary = labeling.label(x_Binary) 
-                    for ind_disocc in range(1, np.max(x_Binary[0])+1):
-                        if np.sum(x_Binary[0]==ind_disocc)>(Y-1):
-                            continue
-                        x_Binary_temp = np.array(x_Binary[0]==ind_disocc, dtype=bool)
-                        x_Binary_temp = x_Binary_temp.nonzero()
-                        x_Binary_temp = np.array([np.min(x_Binary_temp[0])-1, np.max(x_Binary_temp[0])+1])
-                        x_Binary_temp = x_Binary_temp[x_Binary_temp>=0]
-                        x_Binary_temp = x_Binary_temp[x_Binary_temp<=Y-1]
-                        
-                        temp_Depth = x_Depth[x_Binary_temp]
-                        temp_Label = x_Label[x_Binary_temp]
-                        
-                    
-                        if temp_Depth.size!=0:
-                            temp_Depth = np.max(temp_Depth[~np.isinf(temp_Depth)])
-                            i = np.argmax(temp_Depth[~np.isinf(temp_Depth)])
-                            temp_Label = temp_Label[i]
-                            x_Depth[x_Binary[0]==ind_disocc] = temp_Depth
-                            x_Label[x_Binary[0]==ind_disocc]= temp_Label
-                        else:
-                            # vertical fill if we have disocclusions in the
-                            # bottom part of the image
-                            x_Depth[x_Binary[0]==ind_disocc] = Cru_Depth[x-1,x_Binary[0]==ind_disocc]
-                            x_Label[x_Binary[0]==ind_disocc] = Cru_Label[x-1,x_Binary[0]==ind_disocc]
-                            
-                            
-                    Cru_Label[x,:] = x_Label
-                    Cru_Depth[x,:] = x_Depth
-                        
-                DepthSquence[m][n][mask_viewmn] = Cru_Depth[mask_viewmn]
-                LabelSquence[m][n][mask_viewmn] = Cru_Label[mask_viewmn]
-                    
-        else:
-            print('View m = %d\n',m)
-            for n in range(N):
-                mask_viewmn = np.squeeze(mask[m,n,:,:])
-                print('View n = %d\n',n)
-                # first view : project from view above
-                if n == 0:
-                    disp_temp = np.squeeze(DepthSquence[0,0,:,:])
-                    # project
-                    for LabelInd in LabelList:
-                        temp_depth = disp_temp[np.squeeze(LabelSquence[0,0,:,:])==LabelInd]
-                        [rx, ry] = (np.squeeze(LabelSquence[0,0,:,:])==LabelInd).nonzero()
+
+        # case 1: m in Mref_sequence
+        if (m in Mref_sequence):
+
+            # update Mref
+            Mref = m
+
+            # for each n_ref, project to K neighbor views
+            for n_ref in Nref_sequence:
+
+                # update Nref
+                Nref = n_ref
+
+                disp_temp = np.squeeze(DepthSquence[Mref,Nref,:,:]) # median disp in that ref
+                view_id_ref = f'{Mref}_{Nref}'
+                for n in range(n_ref+1, nref+K+1):
+                    # legal indices in view m,n
+                    mask_viewmn = np.squeeze(mask[m,n,:,:])
+                    legal_ind = np.nonzero(mask_viewmn == True)
+                    legal_ind = np.ravel_multi_index([legal_ind[0], legal_ind[1]], (X,Y))
+
+                    for LabelInd in LabelList_dict[view_id_ref]:
+                        # temp depth of the superrays
+                        temp_depth = disp_temp[Segmentation_dict[view_id_ref]==LabelInd]
+                        [rx, ry] = (Segmentation_dict[view_id_ref]==LabelInd).nonzero()
                         temp_depth = np.median(temp_depth)
                         if (np.isnan(temp_depth) or np.isinf(temp_depth)):
-                            print("infinite value encountered in vertical projection")
-                        #projection on the neighboring views in the horizontal axis
+                            print("infinite value encountered in 1st column")
+                        # projection from first view to the horizontal neighbors next to it
                         temp_LabelSquence = np.squeeze(LabelSquence[m,n,:,:]);
                         temp_DepthSquence = np.squeeze(DepthSquence[m,n,:,:]);
-                        
-                        Mref = 0
-                        Nref = 0
+                        # reference
+                        ##Mref = m
+                        ##Nref = n_ref
+                        # target
                         Mtar = m
-                        Ntar = 0
-    
+                        Ntar = n
+                        # projection
                         nx = (Mtar-Mref)*temp_depth
                         ny = (Ntar-Nref)*temp_depth
                         nx = np.round(rx + nx).astype('int64')
                         ny = np.round(ny + ry).astype('int64')
-
-                        #Out of range not included in original Super-rays
+                        
+                        # Out of range not included in original Super-rays
                         illegal_ind_mask11 = np.logical_or(nx<0,nx>(X-1))
                         illegal_ind_mask12 = np.logical_or(ny<0,ny>(Y-1))
                         illegal_ind_mask1 = np.logical_or(illegal_ind_mask11,illegal_ind_mask12)
@@ -291,54 +218,145 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
                         # occlusion detection
                         occlusion_depth = temp_DepthSquence[nx, ny]
                         illegal_ind_mask2 = occlusion_depth<temp_depth
+                        
                         nx = nx[~illegal_ind_mask2]
                         ny = ny[~illegal_ind_mask2]
                         temp_LabelSquence[nx, ny] = LabelInd
                         temp_DepthSquence[nx, ny] = temp_depth
-                        
+
                     Cru_Label = temp_LabelSquence
-                    Cru_Depth  = temp_DepthSquence
-                    #vertical fill
-                    print('Vertical fill\n')
-                    for y in range(Y):
-                        y_Label = Cru_Label[:,y]
-                        y_Depth = Cru_Depth[:,y]
-                        y_Binary = np.isinf(y_Depth)
-                        y_Binary = labeling.label(y_Binary)
-                        
-                        for ind_disocc in range(1, np.max(y_Binary[0])+1):
-                            if np.sum(y_Binary[0]==ind_disocc)==(X-1):
+                    Cru_Depth = temp_DepthSquence
+
+                    print('Horizontal fill\n')
+                    # horizontal fill
+                    for x in range(X):
+                        x_Label = Cru_Label[x, :]
+                        x_Depth = Cru_Depth[x, :]
+                        x_Binary = np.isinf(x_Depth)
+                        x_Binary = labeling.label(x_Binary) 
+                        for ind_disocc in range(1, np.max(x_Binary[0])+1):
+                            if np.sum(x_Binary[0]==ind_disocc)>(Y-1):
                                 continue
-                            y_Binary_temp = np.array(y_Binary[0]==ind_disocc, dtype=bool)
-                            y_Binary_temp = y_Binary_temp.nonzero()                     
-                            y_Binary_temp = np.array([np.min(y_Binary_temp[0])-1, np.max(y_Binary_temp[0])+1])
-                            y_Binary_temp = y_Binary_temp[y_Binary_temp>=0]
-                            y_Binary_temp = y_Binary_temp[y_Binary_temp<=X-1]
+                            x_Binary_temp = np.array(x_Binary[0]==ind_disocc, dtype=bool)
+                            x_Binary_temp = x_Binary_temp.nonzero()
+                            x_Binary_temp = np.array([np.min(x_Binary_temp[0])-1, np.max(x_Binary_temp[0])+1])
+                            x_Binary_temp = x_Binary_temp[x_Binary_temp>=0]
+                            x_Binary_temp = x_Binary_temp[x_Binary_temp<=Y-1]
                             
-                            temp_Depth = y_Depth[y_Binary_temp]
-                            temp_Label = y_Label[y_Binary_temp]
+                            temp_Depth = x_Depth[x_Binary_temp]
+                            temp_Label = x_Label[x_Binary_temp]
                             
+                        
                             if temp_Depth.size!=0:
                                 temp_Depth = np.max(temp_Depth[~np.isinf(temp_Depth)])
                                 i = np.argmax(temp_Depth[~np.isinf(temp_Depth)])
                                 temp_Label = temp_Label[i]
-                                y_Depth[y_Binary[0]==ind_disocc] = temp_Depth
-                                y_Label[y_Binary[0]==ind_disocc] = temp_Label
+                                x_Depth[x_Binary[0]==ind_disocc] = temp_Depth
+                                x_Label[x_Binary[0]==ind_disocc]= temp_Label
                             else:
-                                #Horizontal fill 
-                                y_Depth[y_Binary[0]==ind_disocc] = Cru_Depth[y_Binary[0]==ind_disocc,y-1]
-                                y_Label[y_Binary[0]==ind_disocc] = Cru_Label[y_Binary[0]==ind_disocc,y-1]
-                        Cru_Label[:,y] = y_Label
-                        Cru_Depth[:,y] = y_Depth
-
+                                # vertical fill if we have disocclusions in the
+                                # bottom part of the image
+                                x_Depth[x_Binary[0]==ind_disocc] = Cru_Depth[x-1,x_Binary[0]==ind_disocc]
+                                x_Label[x_Binary[0]==ind_disocc] = Cru_Label[x-1,x_Binary[0]==ind_disocc]
+                                
+                                
+                        Cru_Label[x,:] = x_Label
+                        Cru_Depth[x,:] = x_Depth
+                            
                     DepthSquence[m][n][mask_viewmn] = Cru_Depth[mask_viewmn]
                     LabelSquence[m][n][mask_viewmn] = Cru_Label[mask_viewmn]
+
+        # case 2: m not in Mref_sequence
+        else:
+            for n_ref in Nref_sequence:
+                
+                # update Nref
+                Nref = n_ref
+
+                disp_temp = np.squeeze(DepthSquence[Mref,Nref,:,:]) # median disp in that ref
+                view_id_ref = f'{Mref}_{Nref}'
+
+                # project from nearest reference view above
+                for LabelInd in LabelList_dict[view_id_ref]:
+                    temp_depth = disp_temp[np.squeeze(LabelSquence[Mref,Nref,:,:])==LabelInd]
+                    [rx, ry] = (np.squeeze(LabelSquence[Mref,Nref,:,:])==LabelInd).nonzero()
+                    temp_depth = np.median(temp_depth)
+                    if (np.isnan(temp_depth) or np.isinf(temp_depth)):
+                        print("infinite value encountered in vertical projection")
+                    #projection on the neighboring views in the vertical axis
+                    temp_LabelSquence = np.squeeze(LabelSquence[m,Nref,:,:]);
+                    temp_DepthSquence = np.squeeze(DepthSquence[m,Nref,:,:]);
                     
-                else:
-                    disp_temp = np.squeeze(DepthSquence[m, 0, :, :])
-                    for LabelInd in LabelList:
-                        temp_depth = disp_temp[np.squeeze(LabelSquence[m, 0, :, :]) == LabelInd]
-                        [rx, ry] =(np.squeeze(LabelSquence[m, 0, :, :])==LabelInd).nonzero()
+                    ##Mref = 0
+                    ##Nref = 0
+                    Mtar = m
+                    Ntar = Nref
+
+                    nx = (Mtar-Mref)*temp_depth
+                    ny = (Ntar-Nref)*temp_depth
+                    nx = np.round(rx + nx).astype('int64')
+                    ny = np.round(ny + ry).astype('int64')
+
+                    #Out of range not included in original Super-rays
+                    illegal_ind_mask11 = np.logical_or(nx<0,nx>(X-1))
+                    illegal_ind_mask12 = np.logical_or(ny<0,ny>(Y-1))
+                    illegal_ind_mask1 = np.logical_or(illegal_ind_mask11,illegal_ind_mask12)
+                    nx = nx[~illegal_ind_mask1]
+                    ny = ny[~illegal_ind_mask1]
+                    
+                    # occlusion detection
+                    occlusion_depth = temp_DepthSquence[nx, ny]
+                    illegal_ind_mask2 = occlusion_depth<temp_depth
+                    nx = nx[~illegal_ind_mask2]
+                    ny = ny[~illegal_ind_mask2]
+                    temp_LabelSquence[nx, ny] = LabelInd
+                    temp_DepthSquence[nx, ny] = temp_depth
+                    
+                Cru_Label = temp_LabelSquence
+                Cru_Depth  = temp_DepthSquence
+                #vertical fill
+                print('Vertical fill\n')
+                for y in range(Y):
+                    y_Label = Cru_Label[:,y]
+                    y_Depth = Cru_Depth[:,y]
+                    y_Binary = np.isinf(y_Depth)
+                    y_Binary = labeling.label(y_Binary)
+                    
+                    for ind_disocc in range(1, np.max(y_Binary[0])+1):
+                        if np.sum(y_Binary[0]==ind_disocc)==(X-1):
+                            continue
+                        y_Binary_temp = np.array(y_Binary[0]==ind_disocc, dtype=bool)
+                        y_Binary_temp = y_Binary_temp.nonzero()                     
+                        y_Binary_temp = np.array([np.min(y_Binary_temp[0])-1, np.max(y_Binary_temp[0])+1])
+                        y_Binary_temp = y_Binary_temp[y_Binary_temp>=0]
+                        y_Binary_temp = y_Binary_temp[y_Binary_temp<=X-1]
+                        
+                        temp_Depth = y_Depth[y_Binary_temp]
+                        temp_Label = y_Label[y_Binary_temp]
+                        
+                        if temp_Depth.size!=0:
+                            temp_Depth = np.max(temp_Depth[~np.isinf(temp_Depth)])
+                            i = np.argmax(temp_Depth[~np.isinf(temp_Depth)])
+                            temp_Label = temp_Label[i]
+                            y_Depth[y_Binary[0]==ind_disocc] = temp_Depth
+                            y_Label[y_Binary[0]==ind_disocc] = temp_Label
+                        else:
+                            #Horizontal fill 
+                            y_Depth[y_Binary[0]==ind_disocc] = Cru_Depth[y_Binary[0]==ind_disocc,y-1]
+                            y_Label[y_Binary[0]==ind_disocc] = Cru_Label[y_Binary[0]==ind_disocc,y-1]
+                    Cru_Label[:,y] = y_Label
+                    Cru_Depth[:,y] = y_Depth
+
+                DepthSquence[m][Nref][mask_viewmn] = Cru_Depth[mask_viewmn]
+                LabelSquence[m][Nref][mask_viewmn] = Cru_Label[mask_viewmn]
+
+
+                # for each n_ref, project to K neighbor views
+                for n in range(n_ref+1, nref+K+1):
+                    disp_temp = np.squeeze(DepthSquence[m, Nref, :, :])
+                    for LabelInd in LabelList_dict[view_id_ref]:
+                        temp_depth = disp_temp[np.squeeze(LabelSquence[m, Nref, :, :]) == LabelInd]
+                        [rx, ry] =(np.squeeze(LabelSquence[m, Nref, :, :])==LabelInd).nonzero()
                         temp_depth = np.median(temp_depth)
                         if (np.isnan(temp_depth) or np.isinf(temp_depth)):
                             print("infinite value encountered in other columns")
@@ -346,10 +364,10 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
                         temp_LabelSquence = np.squeeze(LabelSquence[m,n,:,:]);
                         temp_DepthSquence = np.squeeze(DepthSquence[m,n,:,:]);
                         # reference
-                        Mref = m
-                        Nref = 0
+                        ##Mref = m
+                        ##Nref = 0
                         # target
-                        Mtar = m
+                        Mtar = Mref ##m
                         Ntar = n
     
                         # projection
@@ -414,6 +432,7 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
     
                     DepthSquence[m][n][mask_viewmn] = Cru_Depth[mask_viewmn]
                     LabelSquence[m][n][mask_viewmn] = Cru_Label[mask_viewmn]
+
                     
     DepthSquence[~mask] = np.nan
     LabelSquence[~mask] = np.nan
