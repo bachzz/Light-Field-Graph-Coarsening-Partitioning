@@ -273,6 +273,8 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
                 # update Nref
                 Nref = n_ref
 
+                mask_viewmn = np.squeeze(mask[m,Nref,:,:])
+
                 disp_temp = np.squeeze(DepthSquence[Mref,Nref,:,:]) # median disp in that ref
                 view_id_ref = f'{Mref}_{Nref}'
 
@@ -353,6 +355,7 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
 
                 # for each n_ref, project to K neighbor views
                 for n in range(n_ref+1, nref+K+1):
+                    mask_viewmn = np.squeeze(mask[m,n,:,:])
                     disp_temp = np.squeeze(DepthSquence[m, Nref, :, :])
                     for LabelInd in LabelList_dict[view_id_ref]:
                         temp_depth = disp_temp[np.squeeze(LabelSquence[m, Nref, :, :]) == LabelInd]
@@ -443,7 +446,14 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
     
     if compute_color == 1:
         ColorMatrixCell = []
-        
+    
+    ###
+    LabelList = np.array([], dtype=int)
+    for view_id in LabelList_dict:
+        LabelList = np.append(LabelList, LabelList_dict[view_id])
+    LabelList = np.unique(LabelList)
+    ###
+
     for label in LabelList:
         print(['label=%d out of %d\n', label, np.max(LabelList)])
         num = np.sum(LabelSquence==label)
