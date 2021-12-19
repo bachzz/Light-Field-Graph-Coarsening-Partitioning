@@ -115,9 +115,9 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
 
     for view_id in Segmentation_dict:
         # e.g: view_id = '0_1'
-        i_ref = view_id.split('_')[0]
-        j_ref = view_id.split('_')[1]
-        
+        i_ref = int(view_id.split('_')[0])
+        j_ref = int(view_id.split('_')[1])
+        #print(i_ref,j_ref)
         LabelList_dict[view_id] = np.unique(Segmentation_dict[view_id][np.squeeze(mask[i_ref,j_ref,:,:])])
         LabelSquence[i_ref, j_ref, :, :] = Segmentation_dict[view_id]
         DepthSquence[i_ref, j_ref, :, :] = Disparity_dict[view_id]
@@ -146,8 +146,8 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
     disparity_values = {};
 
     for view_id in Segmentation_dict:
-        i_ref = view_id.split('_')[0]
-        j_ref = view_id.split('_')[1]
+        i_ref = int(view_id.split('_')[0])
+        j_ref = int(view_id.split('_')[1])
 
         disparity_values[view_id] = []
         
@@ -180,7 +180,14 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
 
                 disp_temp = np.squeeze(DepthSquence[Mref,Nref,:,:]) # median disp in that ref
                 view_id_ref = f'{Mref}_{Nref}'
-                for n in range(n_ref+1, nref+K+1):
+
+		####
+                views_count = K
+                if (n_ref == Nref_sequence[-1]):
+                    views_count = K+1
+		####
+
+                for n in range(n_ref+1, n_ref+views_count+1):
                     # legal indices in view m,n
                     mask_viewmn = np.squeeze(mask[m,n,:,:])
                     legal_ind = np.nonzero(mask_viewmn == True)
@@ -354,7 +361,13 @@ def Projection_labels(Segmentation_ref, mask, Disparity_ref, compute_color = 0, 
 
 
                 # for each n_ref, project to K neighbor views
-                for n in range(n_ref+1, nref+K+1):
+
+                ####
+                views_count = K
+                if (n_ref == Nref_sequence[-1]):
+                    views_count = K+1
+                ####
+                for n in range(n_ref+1, n_ref+views_count+1):
                     mask_viewmn = np.squeeze(mask[m,n,:,:])
                     disp_temp = np.squeeze(DepthSquence[m, Nref, :, :])
                     for LabelInd in LabelList_dict[view_id_ref]:
@@ -619,7 +632,7 @@ data_root_path = 'Test_datasets/'
 #LF_original = sio.loadmat('/temp_dd/igrida-fs1/mrizkall/Dataset_graphs/'+dataset+'/QP0/RGB.mat',variable_names=['RGB'])
 #Disp_original = sio.loadmat('/temp_dd/igrida-fs1/mrizkall/Dataset_graphs/'+dataset+'/QP0/Disparity.mat',variable_names=['Disparity'])
 LF_original = sio.loadmat(data_root_path+dataset+'/QP0/RGB.mat',variable_names=['RGB'])
-Disp_original = sio.loadmat(data_root_path+dataset+'/QP0/Disparity.mat',variable_names=['disp'])  #'Disparity'])
+Disp_original = sio.loadmat(data_root_path+dataset+'/QP0/Disparity.mat',variable_names=['Disparity'])  #'Disparity'])
 
 #num_SR = 1000
 
@@ -629,7 +642,7 @@ Disp_original = sio.loadmat(data_root_path+dataset+'/QP0/Disparity.mat',variable
 LF_original = LF_original['RGB']
 print(Disp_original)
 ##Disp = Disp_original['disp']  #['Disparity']
-Disp = Disp_original['Disparity']
+Disp = Disp_original['Disparity'].copy()
 
 M = LF_original.shape[0]
 N = LF_original.shape[1]
@@ -672,5 +685,5 @@ Disparity_ref = {
 mask = np.ones((LF_original.shape[0:4])).astype('bool')
 LabelSquence, disparity_values, ConMatrixCell, ColorMatrixCell, PxlIndCell = Projection_labels(Segmentation_ref, mask, Disparity_ref, 1, LF_original)
 
-sio.savemat(filename, {'LF_RGB': LF_original, 'Depthset': Disp, 'ConMatrixCell':ConMatrixCell,'ColorMatrixCell':ColorMatrixCell, 'DestC':LabelSquence, 'PxlIndCell':PxlIndCell, 'disp_perSR':disparity_values})
+sio.savemat(filename, {'LF_RGB': LF_original, 'Depthset': Disp_original['Disparity'], 'ConMatrixCell':ConMatrixCell,'ColorMatrixCell':ColorMatrixCell, 'DestC':LabelSquence, 'PxlIndCell':PxlIndCell, 'disp_perSR':disparity_values})
 
